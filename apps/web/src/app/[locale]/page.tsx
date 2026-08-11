@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { HomePage, type NewsItem } from "@/components/home-page";
 import { getMessages, isLocale, type Locale } from "@/i18n";
-import { fetchCategories, fetchDistricts, fetchPublishedArticles, translationFor } from "@/lib/api";
+import { fetchCategories, fetchDistricts, fetchInsights, fetchPublishedArticles, translationFor } from "@/lib/api";
 
 export const revalidate = 60;
 
@@ -11,10 +11,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   if (!isLocale(locale)) notFound();
 
   // Everything on the homepage comes from NestJS/PostgreSQL.
-  const [published, categories, districts] = await Promise.all([
+  const [published, categories, districts, insights] = await Promise.all([
     fetchPublishedArticles(locale, 24),
     fetchCategories(),
-    fetchDistricts()
+    fetchDistricts(),
+    fetchInsights()
   ]);
 
   const articles: NewsItem[] = published.flatMap((article) => {
@@ -45,6 +46,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       articles={articles}
       categories={categories}
       districts={districts}
+      insights={insights}
     />
   );
 }

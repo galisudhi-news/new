@@ -3,14 +3,19 @@ import type { Route } from "next";
 import { Search, UserRound } from "lucide-react";
 
 import { getMessages, type Locale } from "@/i18n";
+import { fetchInsights } from "@/lib/api";
+import { InsightsStrip } from "./insights-strip";
 
 /** Compact header for the inner pages (article, category, district, search). */
-export function SiteHeader({ locale }: { locale: Locale }) {
+export async function SiteHeader({ locale }: { locale: Locale }) {
   const t = getMessages(locale);
+  const insights = await fetchInsights();
   const otherLocale: Locale = locale === "en" ? "kn" : "en";
 
   return (
-    <header className="border-b border-black/10 bg-white">
+    <>
+      <InsightsStrip insights={insights} locale={locale} />
+      <header className="border-b border-black/10 bg-white">
       <div className="container-news flex min-w-0 items-center gap-3 py-4">
         <Link href={`/${locale}` as Route} className="mr-auto min-w-0 truncate text-2xl font-black">
           <span className="text-brand-600">{t.brandKannada}</span> {t.brandSuffix}
@@ -36,5 +41,6 @@ export function SiteHeader({ locale }: { locale: Locale }) {
         </Link>
       </div>
     </header>
+    </>
   );
 }

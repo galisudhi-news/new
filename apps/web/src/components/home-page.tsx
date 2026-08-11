@@ -8,7 +8,8 @@ import { useState } from "react";
 import { Menu, Search, UserRound, Bell, X } from "lucide-react";
 
 import { switchLocalePath, type Locale, type messages as allMessages } from "@/i18n";
-import type { CategoryRef, DistrictRef } from "@/lib/api";
+import type { CategoryRef, DistrictRef, Insights } from "@/lib/api";
+import { InsightsStrip } from "./insights-strip";
 
 type Messages = typeof allMessages.en;
 
@@ -115,13 +116,15 @@ export function HomePage({
   messages: t,
   articles = [],
   categories = [],
-  districts = []
+  districts = [],
+  insights = { weather: null, markets: [] }
 }: {
   locale: Locale;
   messages: Messages;
   articles?: NewsItem[];
   categories?: CategoryRef[];
   districts?: DistrictRef[];
+  insights?: Insights;
 }) {
   const [menu, setMenu] = useState(false);
   const pathname = usePathname();
@@ -137,6 +140,8 @@ export function HomePage({
 
   return (
     <main className="min-w-0">
+      <InsightsStrip insights={insights} locale={locale} />
+
       <header className="sticky top-0 z-50 border-b border-black/10 bg-white/95 backdrop-blur">
         <div className="container-news flex min-w-0 items-center gap-2 py-3 sm:h-16 sm:gap-4 sm:py-0">
           <button

@@ -139,6 +139,34 @@ export async function fetchPublishedArticles(
   }
 }
 
+export type Weather = {
+  city: string;
+  temperatureC: number;
+  humidity: number | null;
+  code: number;
+  observedAt: string;
+};
+
+export type MarketQuote = {
+  symbol: string;
+  label: string;
+  value: number;
+  changePercent: number | null;
+};
+
+export type Insights = { weather: Weather | null; markets: MarketQuote[] };
+
+/** Live weather + currency strip. Never blocks the page: failure renders nothing. */
+export async function fetchInsights(): Promise<Insights> {
+  try {
+    const response = await fetch(`${API_BASE}/insights`, { next: { revalidate: 600 } });
+    if (!response.ok) return { weather: null, markets: [] };
+    return (await response.json()) as Insights;
+  } catch {
+    return { weather: null, markets: [] };
+  }
+}
+
 export async function fetchCategories(): Promise<CategoryRef[]> {
   try {
     const response = await fetch(`${API_BASE}/categories`, { next: { revalidate: 300 } });

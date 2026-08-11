@@ -10,6 +10,7 @@ import { PrismaService } from "./prisma.service";
 import { ArticlesModule } from "./modules/articles/articles.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
+import { InsightsModule } from "./modules/insights/insights.module";
 
 /** Vercel/Lambda: read-only filesystem, no long-lived process. */
 const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
@@ -34,6 +35,7 @@ const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCT
     ArticlesModule,
     AuthModule,
     UsersModule,
+    InsightsModule,
   ],
 
   controllers: [HealthController],
