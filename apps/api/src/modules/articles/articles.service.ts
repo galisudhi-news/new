@@ -41,14 +41,41 @@ export class ArticlesService {
 
   // ---------------------------------------------------------------- public
 
-  async findAll(locale: string, limit: number) {
+  async findAll(
+    locale: string,
+    limit: number,
+    filters: {
+      categorySlug?: string;
+      districtSlug?: string;
+      featured?: boolean;
+      excludeSlug?: string;
+      search?: string;
+    } = {}
+  ) {
     const languageId = this.normalizeLocale(locale);
     await this.publishDueScheduled({ throttle: true });
 
     return this.prisma.article.findMany({
       where: {
         status: ArticleStatus.PUBLISHED,
-        translations: { some: { languageId } }
+        translations: {
+          some: {
+            languageId,
+            ...(filters.search
+              ? {
+                  OR: [
+                    { title: { contains: filters.search, mode: "insensitive" as const } },
+                    { subtitle: { contains: filters.search, mode: "insensitive" as const } },
+                    { body: { contains: filters.search, mode: "insensitive" as const } }
+                  ]
+                }
+              : {})
+          }
+        },
+        ...(filters.categorySlug ? { category: { slug: filters.categorySlug } } : {}),
+        ...(filters.districtSlug ? { district: { slug: filters.districtSlug } } : {}),
+        ...(filters.featured ? { isFeatured: true } : {}),
+        ...(filters.excludeSlug ? { slug: { not: filters.excludeSlug } } : {})
       },
       take: limit,
       orderBy: { publishedAt: "desc" },
@@ -57,6 +84,36 @@ export class ArticlesService {
         translations: { where: { languageId }, take: 1 }
       }
     });
+  }
+
+  /** Categories that actually have published articles, for the public navigation. */
+  async publicCategories() {
+    const categories = await this.prisma.category.findMany({
+      where: { articles: { some: { status: ArticleStatus.PUBLISHED } } },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        _count: { select: { articles: { where: { status: ArticleStatus.PUBLISHED } } } }
+      }
+    });
+    return categories.map(({ _count, ...category }) => ({ ...category, articleCount: _count.articles }));
+  }
+
+  async publicDistricts() {
+    const districts = await this.prisma.district.findMany({
+      where: { articles: { some: { status: ArticleStatus.PUBLISHED } } },
+      orderBy: { nameEn: "asc" },
+      select: {
+        id: true,
+        slug: true,
+        nameEn: true,
+        nameKn: true,
+        _count: { select: { articles: { where: { status: ArticleStatus.PUBLISHED } } } }
+      }
+    });
+    return districts.map(({ _count, ...district }) => ({ ...district, articleCount: _count.articles }));
   }
 
   async findBySlug(slug: string, locale = "en") {

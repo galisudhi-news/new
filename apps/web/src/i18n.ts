@@ -4,7 +4,7 @@ import kn from "../messages/kn.json";
 export const locales = ["en", "kn"] as const;
 export type Locale = (typeof locales)[number];
 
-export const defaultLocale: Locale = "en";
+export const defaultLocale: Locale = "kn";
 
 export const messages = { en, kn } as const;
 

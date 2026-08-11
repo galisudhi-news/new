@@ -107,16 +107,54 @@ export function translationFor(article: Article, languageId: "en" | "kn") {
   return article.translations?.find((item) => item.languageId === languageId);
 }
 
+export type CategoryRef = { id: string; slug: string; name: string; articleCount: number };
+export type DistrictRef = { id: string; slug: string; nameEn: string; nameKn: string; articleCount: number };
+
 /** Public read of published articles — server side, no auth. */
-export async function fetchPublishedArticles(locale: string, limit = 20): Promise<Article[]> {
+export async function fetchPublishedArticles(
+  locale: string,
+  limit = 20,
+  filters: {
+    category?: string;
+    district?: string;
+    featured?: boolean;
+    exclude?: string;
+    search?: string;
+  } = {}
+): Promise<Article[]> {
+  const query = new URLSearchParams({ locale, limit: String(limit) });
+  if (filters.category) query.set("category", filters.category);
+  if (filters.district) query.set("district", filters.district);
+  if (filters.featured) query.set("featured", "true");
+  if (filters.exclude) query.set("exclude", filters.exclude);
+  if (filters.search) query.set("q", filters.search);
+
   try {
-    const response = await fetch(`${API_BASE}/articles?locale=${locale}&limit=${limit}`, {
-      next: { revalidate: 60 }
-    });
+    const response = await fetch(`${API_BASE}/articles?${query}`, { next: { revalidate: 60 } });
     if (!response.ok) return [];
     return (await response.json()) as Article[];
   } catch {
     // The site must still render when the API is down.
+    return [];
+  }
+}
+
+export async function fetchCategories(): Promise<CategoryRef[]> {
+  try {
+    const response = await fetch(`${API_BASE}/categories`, { next: { revalidate: 300 } });
+    if (!response.ok) return [];
+    return (await response.json()) as CategoryRef[];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchDistricts(): Promise<DistrictRef[]> {
+  try {
+    const response = await fetch(`${API_BASE}/districts`, { next: { revalidate: 300 } });
+    if (!response.ok) return [];
+    return (await response.json()) as DistrictRef[];
+  } catch {
     return [];
   }
 }

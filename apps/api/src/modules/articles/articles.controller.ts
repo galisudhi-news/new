@@ -13,8 +13,22 @@ export class ArticlesController {
   // -------------------------------------------------------- public reading
 
   @Get()
-  findAll(@Query("locale") locale = "en", @Query("limit") limit = "20") {
-    return this.service.findAll(locale, Math.min(Number(limit) || 20, 100));
+  findAll(
+    @Query("locale") locale = "en",
+    @Query("limit") limit = "20",
+    @Query("category") category?: string,
+    @Query("district") district?: string,
+    @Query("featured") featured?: string,
+    @Query("exclude") exclude?: string,
+    @Query("q") q?: string
+  ) {
+    return this.service.findAll(locale, Math.min(Number(limit) || 20, 100), {
+      categorySlug: category || undefined,
+      districtSlug: district || undefined,
+      featured: featured === "true" || featured === "1",
+      excludeSlug: exclude || undefined,
+      search: q?.trim() || undefined
+    });
   }
 
   @Get(":slug")
