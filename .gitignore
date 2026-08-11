@@ -10,3 +10,5 @@ coverage
 
 # Vercel import files (non-hidden so they appear in file pickers)
 *.env
+.vercel
+.env*

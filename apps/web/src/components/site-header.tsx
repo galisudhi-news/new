@@ -6,8 +6,12 @@ import { getMessages, type Locale } from "@/i18n";
 import { fetchInsights } from "@/lib/api";
 import { InsightsStrip } from "./insights-strip";
 
-/** Compact header for the inner pages (article, category, district, search). */
-export async function SiteHeader({ locale }: { locale: Locale }) {
+/**
+ * Compact header for the inner pages (article, category, district, search).
+ * `languageHref` lets an article page point the toggle at its own translation
+ * instead of the other locale's homepage.
+ */
+export async function SiteHeader({ locale, languageHref }: { locale: Locale; languageHref?: string }) {
   const t = getMessages(locale);
   const insights = await fetchInsights();
   const otherLocale: Locale = locale === "en" ? "kn" : "en";
@@ -34,7 +38,7 @@ export async function SiteHeader({ locale }: { locale: Locale }) {
           <UserRound size={15} /> {t.staffLogin}
         </Link>
         <Link
-          href={`/${otherLocale}` as Route}
+          href={(languageHref ?? `/${otherLocale}`) as Route}
           className="shrink-0 rounded-lg bg-black px-3 py-2 text-xs font-bold text-white"
         >
           {otherLocale === "kn" ? "ಕನ್ನಡ" : "EN"}

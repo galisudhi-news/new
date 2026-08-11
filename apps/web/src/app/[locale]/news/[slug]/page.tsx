@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { fetchPublishedArticle, fetchPublishedArticles, translationFor } from "@/lib/api";
 import { ArticleCard } from "@/components/article-card";
+import { SiteHeader } from "@/components/site-header";
 import { getMessages, isLocale, type Locale } from "@/i18n";
 
 type PageProps = { params: Promise<{ locale: string; slug: string }> };
@@ -66,27 +67,14 @@ export default async function ArticlePage({ params }: PageProps) {
 
   return (
     <main className={`min-w-0 ${locale === "kn" ? "font-kannada" : ""}`}>
-      <header className="border-b border-black/10 bg-white">
-        <div className="container-news flex min-w-0 items-center gap-3 py-4">
-          <Link href={`/${locale}` as Route} className="mr-auto min-w-0 truncate text-2xl font-black">
-            <span className="text-brand-600">{t.brandKannada}</span> {t.brandSuffix}
-          </Link>
-          <Link
-            href={`/${locale}/search` as Route}
-            className="shrink-0 rounded-lg border px-3 py-2 text-xs font-bold hover:bg-black/5"
-          >
-            {t.searchTitle}
-          </Link>
-          {otherTranslation && (
-            <Link
-              href={`/${otherLocale}/news/${otherTranslation.slug || article.slug}` as Route}
-              className="shrink-0 rounded-lg bg-black px-3 py-2 text-xs font-bold text-white"
-            >
-              {otherLocale === "kn" ? "ಕನ್ನಡ" : "EN"}
-            </Link>
-          )}
-        </div>
-      </header>
+      <SiteHeader
+        locale={locale as Locale}
+        languageHref={
+          otherTranslation
+            ? `/${otherLocale}/news/${otherTranslation.slug || article.slug}`
+            : `/${otherLocale}`
+        }
+      />
 
       <article className="container-news min-w-0 py-8">
         {article.category && (
