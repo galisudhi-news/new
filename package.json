@@ -19,9 +19,5 @@
   "engines": {
     "node": ">=20.9.0",
     "npm": ">=10.0.0"
-  },
-  "dependencies": {
-    "@apollo/server": "^4.13.0",
-    "@nestjs/apollo": "^12.2.0"
   }
 }
