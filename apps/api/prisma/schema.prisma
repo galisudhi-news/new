@@ -1,0 +1,309 @@
+generator client {
+  provider = "prisma-client-js"
+  // rhel-openssl-3.0.x is the engine serverless platforms (Vercel/Lambda) need.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ArticleStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+  STUDENT
+  CORPORATE
+}
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  name         String
+  passwordHash String
+  status       UserStatus       @default(ACTIVE)
+  locale       String           @default("en")
+  avatarUrl    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  roles        Role[]
+  articles     Article[]        @relation("AuthorArticles")
+  reported     Article[]        @relation("ReporterArticles")
+  submitted    Article[]        @relation("SubmittedArticles")
+  reviewed     Article[]        @relation("ReviewedArticles")
+  published    Article[]        @relation("PublishedArticles")
+  auditLogs    AuditLog[]
+  comments     Comment[]
+  bookmarks    Bookmark[]
+  history      ReadingHistory[]
+  subscription Subscription?
+}
+
+model Role {
+  id    String @id @default(cuid())
+  name  String @unique
+  users User[]
+}
+
+model Language {
+  code     String               @id
+  name     String
+  articles ArticleTranslation[]
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  articles    Article[]
+}
+
+model District {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  nameEn   String
+  nameKn   String
+  articles Article[]
+}
+
+model Author {
+  id         String  @id @default(cuid())
+  name       String
+  slug       String  @unique
+  bio        String?
+  photoUrl   String?
+  socialJson Json?
+}
+
+model Article {
+  id             String               @id @default(cuid())
+  slug           String               @unique
+  status         ArticleStatus        @default(DRAFT)
+  categoryId     String
+  districtId     String?
+  authorId       String
+  reporterId     String?
+  submittedById  String?
+  reviewedById   String?
+  publishedById  String?
+  featuredImage  String?
+  publishedAt    DateTime?
+  submittedAt    DateTime?
+  reviewedAt     DateTime?
+  scheduledAt    DateTime?
+  reviewNote     String?
+  updatedAt      DateTime             @updatedAt
+  createdAt      DateTime             @default(now())
+  readingMinutes Int                  @default(5)
+  views          Int                  @default(0)
+  shares         Int                  @default(0)
+  commentsCount  Int                  @default(0)
+  isBreaking     Boolean              @default(false)
+  isFeatured     Boolean              @default(false)
+  category       Category             @relation(fields: [categoryId], references: [id])
+  district       District?            @relation(fields: [districtId], references: [id])
+  author         User                 @relation("AuthorArticles", fields: [authorId], references: [id])
+  reporter       User?                @relation("ReporterArticles", fields: [reporterId], references: [id])
+  submittedBy    User?                @relation("SubmittedArticles", fields: [submittedById], references: [id])
+  reviewedBy     User?                @relation("ReviewedArticles", fields: [reviewedById], references: [id])
+  publishedBy    User?                @relation("PublishedArticles", fields: [publishedById], references: [id])
+  translations   ArticleTranslation[]
+  tags           Tag[]
+  comments       Comment[]
+  bookmarks      Bookmark[]
+  gallery        Media[]
+  factCheck      FactCheck?
+  seo            SeoMetadata?
+  liveUpdates    LiveUpdate[]
+  auditLogs      AuditLog[]
+
+  @@index([status, publishedAt])
+  @@index([status, updatedAt])
+}
+
+model ArticleTranslation {
+  id             String   @id @default(cuid())
+  articleId      String
+  languageId     String
+  title          String
+  subtitle       String?
+  body           String
+  slug           String?
+  seoTitle       String?
+  seoDescription String?
+  ogTitle        String?
+  ogDescription  String?
+  article        Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  language       Language @relation(fields: [languageId], references: [code])
+
+  @@unique([articleId, languageId])
+}
+
+model Tag {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  name     String
+  articles Article[]
+}
+
+model Media {
+  id          String   @id @default(cuid())
+  articleId   String?
+  type        String
+  originalUrl String
+  cdnUrl      String?
+  altEn       String?
+  altKn       String?
+  captionEn   String?
+  captionKn   String?
+  width       Int?
+  height      Int?
+  exif        Json?
+  article     Article? @relation(fields: [articleId], references: [id])
+}
+
+model Video {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  provider    String
+  sourceUrl   String
+  thumbnail   String?
+  durationSec Int?
+  publishedAt DateTime?
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  articleId String
+  userId    String
+  parentId  String?
+  body      String
+  approved  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+}
+
+model ReadingHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  viewedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, viewedAt])
+}
+
+model Subscription {
+  id         String           @id @default(cuid())
+  userId     String           @unique
+  plan       SubscriptionPlan @default(FREE)
+  status     String           @default("active")
+  provider   String?
+  externalId String?
+  startedAt  DateTime         @default(now())
+  expiresAt  DateTime?
+  user       User             @relation(fields: [userId], references: [id])
+}
+
+model Advertisement {
+  id          String    @id @default(cuid())
+  name        String
+  placement   String
+  imageUrl    String?
+  targetUrl   String?
+  active      Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model LiveUpdate {
+  id        String   @id @default(cuid())
+  articleId String
+  title     String?
+  body      String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model FactCheck {
+  id          String  @id @default(cuid())
+  articleId   String  @unique
+  verdict     String
+  explanation String
+  sourceUrls  Json
+  article     Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model SeoMetadata {
+  id                String  @id @default(cuid())
+  articleId         String  @unique
+  metaTitleEn       String?
+  metaTitleKn       String?
+  metaDescriptionEn String?
+  metaDescriptionKn String?
+  canonicalUrl      String?
+  ogImage           String?
+  article           Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String         @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  articleId String?
+  oldStatus ArticleStatus?
+  newStatus ArticleStatus?
+  note      String?
+  metadata  Json?
+  createdAt DateTime       @default(now())
+  actor     User?          @relation(fields: [actorId], references: [id])
+  article   Article?       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([entity, entityId, createdAt])
+  @@index([articleId, createdAt])
+}

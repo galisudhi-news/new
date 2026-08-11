@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: news-ingress
+  namespace: news-platform
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: news.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: news-api, port: { number: 4000 } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: news-web, port: { number: 3000 } } }

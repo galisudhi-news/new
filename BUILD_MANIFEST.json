@@ -1,0 +1,12 @@
+{
+  "project": "premium_bilingual_news_platform",
+  "files": 54,
+  "zip": "/mnt/data/premium_bilingual_news_platform.zip",
+  "frontend": "Next.js 15 / React / TypeScript / Tailwind",
+  "backend": "NestJS / Prisma / PostgreSQL",
+  "languages": [
+    "English",
+    "Kannada"
+  ],
+  "reference_image_included": true
+}

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: news-web, namespace: news-platform }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: news-web } }
+  template:
+    metadata: { labels: { app: news-web } }
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/example/news-web:latest
+          ports: [{containerPort: 3000}]
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: news-web, namespace: news-platform }
+spec:
+  selector: { app: news-web }
+  ports: [{port: 3000, targetPort: 3000}]
