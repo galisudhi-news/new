@@ -1,162 +1,161 @@
-# Deploying Gāḷi Suddi on Vercel (free tier)
+# Deploying Gāḷi Suddi on Vercel — step by step
 
-The monorepo becomes **two Vercel projects plus one hosted Postgres**, all on free plans:
+The monorepo becomes **two Vercel projects + one hosted Postgres**, all on free plans:
 
-| Piece | Where | Free plan |
+| Piece | Where | Root Directory |
 | --- | --- | --- |
-| Next.js site + `/admin` | Vercel project → root directory `apps/web` | Hobby |
-| NestJS API | Vercel project → root directory `apps/api` (serverless) | Hobby |
-| PostgreSQL | [Neon](https://neon.tech) | Free tier |
+| Next.js site + `/admin` | Vercel project #1 | `apps/web` |
+| NestJS API | Vercel project #2 (serverless) | `apps/api` |
+| PostgreSQL | [Neon](https://neon.tech) free tier | — |
 
-Vercel's free plan never runs a long-lived server, so the API is deployed as a serverless
-function. `apps/api/api/[[...path]].js` + `apps/api/src/serverless.ts` + `apps/api/vercel.json`
-exist for exactly that; `src/main.ts` is still what runs locally and in Docker.
+One Vercel project cannot serve both apps. You import the **same repository twice** and give each
+project a different Root Directory.
+
+Vercel's free plan never runs a long-lived server, so the API is deployed as a serverless function.
+`apps/api/api/[[...path]].js`, `apps/api/src/serverless.ts` and `apps/api/vercel.json` exist for
+that; `src/main.ts` is still what runs locally and in Docker.
 
 ---
 
-## 0. Put the code on GitHub
+## Step 1 — Create the database
 
-The project is not a git repository yet:
+**Option A (fewest steps):** provision it from inside Vercel after Step 3 — API project →
+**Storage** → **Create Database** → **Neon**. Vercel injects `DATABASE_URL` automatically.
 
-```bash
-git init
-git add .
-git commit -m "Gāḷi Suddi: editorial approval workflow"
-gh repo create gali-suddi --private --source=. --push     # or create the repo in the GitHub UI
+**Option B:** at [neon.tech](https://neon.tech) → **New Project** → pick the region closest to your
+readers (Mumbai / Singapore). From the **Connection string** widget copy **both** forms:
+
+```
+# POOLED — for the running app (note the "-pooler")
+postgresql://USER:PASSWORD@ep-xxxx-12345678-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+
+# DIRECT — for migrations only (same string, no "-pooler")
+postgresql://USER:PASSWORD@ep-xxxx-12345678.REGION.aws.neon.tech/neondb?sslmode=require
 ```
 
-(You can skip this and use `npx vercel` from each app folder instead — Vercel's CLI deploys
-without GitHub. GitHub is nicer because it gives you automatic deploys on push.)
+Serverless functions open many short-lived connections, so the app uses the pooled URL. Prisma's
+migration engine cannot run through a pooler, so migrations use the direct URL.
 
-## 1. Create the database (Neon)
-
-1. Sign up at neon.tech → **New Project** → region closest to your users (e.g. Singapore/Mumbai).
-2. Copy **both** connection strings from the dashboard:
-   - the **pooled** one (`...-pooler.neon.tech/...`) → for the running app
-   - the **direct** one → for migrations
-
-## 2. Run migrations and seed against Neon
+## Step 2 — Create the schema and seed content
 
 From your machine, once:
 
 ```bash
 cd apps/api
-DATABASE_URL="<direct-connection-string>" npx prisma migrate deploy
-DATABASE_URL="<direct-connection-string>" npm run prisma:seed        # roles + demo users
-DATABASE_URL="<direct-connection-string>" npm run prisma:seed:news   # bilingual demo articles
+DATABASE_URL="<direct-url>" npx prisma migrate deploy   # tables + enums
+DATABASE_URL="<direct-url>" npm run prisma:seed         # 10 roles + 4 demo accounts
+DATABASE_URL="<direct-url>" npm run prisma:seed:news    # 15 bilingual demo articles
 ```
 
-## 3. Deploy the API project
+Skipping this leaves an empty database and the deployed API will error on every request.
 
-Vercel → **Add New → Project** → import the repo, then:
+## Step 3 — Deploy the API project
 
-- **Root Directory**: `apps/api`
-- **Framework Preset**: Other (`vercel.json` supplies the build command)
-- **Environment Variables**:
+Vercel → **Add New → Project** → import the repository, then **before clicking Deploy**:
 
-  ```
-  DATABASE_URL   = <pooled Neon connection string>
-  JWT_SECRET     = <long random string>
-  JWT_EXPIRES_IN = 8h
-  NODE_ENV       = production
-  ```
+- **Root Directory**: `apps/api` ← the single most common mistake
+- **Framework Preset**: Other
+- **Environment Variables** (tick Production + Preview + Development for each):
 
-Deploy, then check `https://<api-project>.vercel.app/api/health` — it should return
-`{"status":"ok",...}`, and `/api/articles?locale=en` should return the seeded articles.
+  | Key | Value |
+  | --- | --- |
+  | `DATABASE_URL` | the **pooled** Neon URL |
+  | `JWT_SECRET` | output of `openssl rand -base64 48` |
+  | `JWT_EXPIRES_IN` | `8h` |
 
-> Generate a secret with `openssl rand -base64 48`. Do **not** reuse the dev value.
+Do **not** set `NODE_ENV` (Vercel sets it) or `PORT` (serverless ignores it). `JWT_REFRESH_SECRET`
+appears in `.env.example` but nothing reads it yet — skip it.
 
-## 4. Deploy the web project
+Deploy, then verify:
 
-Vercel → **Add New → Project** → same repo again, then:
+```
+https://<api-project>.vercel.app/api/health          → {"status":"ok",...}
+https://<api-project>.vercel.app/api/articles?locale=en   → the seeded articles
+```
+
+## Step 4 — Deploy the website project
+
+Vercel → **Add New → Project** → import **the same repository again**:
 
 - **Root Directory**: `apps/web`
 - **Framework Preset**: Next.js (auto-detected)
 - **Environment Variables**:
 
-  ```
-  NEXT_PUBLIC_API_URL  = https://<api-project>.vercel.app
-  NEXT_PUBLIC_SITE_URL = https://<web-project>.vercel.app
-  ```
+  | Key | Value |
+  | --- | --- |
+  | `NEXT_PUBLIC_API_URL` | `https://<api-project>.vercel.app` — bare origin, **no** `/api` suffix |
+  | `NEXT_PUBLIC_SITE_URL` | `https://<web-project>.vercel.app` |
 
-Deploy. The public site is at `/en` and `/kn`; the newsroom is at `/admin`.
+Both are `NEXT_PUBLIC_*`, so they are baked in **at build time** — after changing either you must
+redeploy, not just restart.
 
-## 5. After the first deploy
+Verify: `/en`, `/kn`, `/admin/login`, and an article page such as
+`/en/news/state-budget-irrigation-rural-roads`.
 
-- Change every demo password. The seed sets `ChangeMe123!` for all four accounts — log in as
-  `admin@example.com` and rotate them (passwords are SHA-256 hashes in the `User` table).
-- Set `NEXT_PUBLIC_SITE_URL` to your custom domain once you add one, so canonical URLs and the
-  sitemap point at the right host.
-- Published articles are cached for 60s (`revalidate = 60`), so a newly published article appears
-  on the public site within a minute.
+## Step 5 — Before you share the link
 
-## Free-tier limits worth knowing
+1. **Change the seeded passwords.** All four demo accounts ship with `ChangeMe123!` and `/admin` is
+   publicly reachable. Log in as `admin@example.com`, rotate them, and send credentials to the
+   client separately from the URL.
+2. **Indexing is already blocked.** `apps/web/src/app/robots.ts` serves `Disallow: /` while
+   `NEXT_PUBLIC_SITE_URL` points at a `*.vercel.app` host. Point it at a real domain — or set
+   `NEXT_PUBLIC_ALLOW_INDEXING=true` — to switch indexing on. `/admin` is `noindex` regardless.
+3. **Warm it up.** Free-tier functions and databases sleep when idle; open the site yourself a
+   minute before the client clicks.
+4. **Reset the demo** any time with `npm run prisma:seed:news` against the hosted database.
 
-- **Cold starts**: the API function sleeps when idle; the first request after a quiet period takes
-  a few seconds while Nest bootstraps. Subsequent requests are fast.
-- **Neon free tier** suspends the database after inactivity and wakes on the next query — the first
-  query after idle is slow for the same reason.
-- **Vercel Hobby is for non-commercial use.** If Gāḷi Suddi starts carrying ads or subscriptions,
-  Vercel's terms require a Pro plan.
-- **Scheduled publishing**: articles set to SCHEDULED are flipped to PUBLISHED by a sweep that runs
-  on public reads. If you want it exact, add a Vercel Cron on the *web* project hitting
-  `POST <api>/api/admin/articles/publish-due` (needs an `articles:publish` token) — Hobby allows
-  one cron job per day, so a paid plan or an external cron (cron-job.org) is better for minute-level
-  accuracy.
+## Updating after the first deploy
 
-## Sending the demo to a client
+`git push` to `main` redeploys both projects automatically. Schema changes need
+`DATABASE_URL="<direct-url>" npx prisma migrate deploy` run against Neon as well — Vercel does not
+run migrations for you.
 
-Before you share the link:
-
-1. **Change the seeded passwords.** All four demo accounts ship with `ChangeMe123!`. Rotate them
-   and send the credentials to the client separately from the URL — `/admin` is reachable by
-   anyone who finds it.
-2. **Indexing is already handled.** `apps/web/src/app/robots.ts` returns `Disallow: /` while
-   `NEXT_PUBLIC_SITE_URL` points at a `*.vercel.app` / `*.onrender.com` host, so the demo cannot
-   be crawled. Point it at a real domain (or set `NEXT_PUBLIC_ALLOW_INDEXING=true`) to switch
-   indexing on. `/admin` carries `robots: noindex` regardless.
-3. **Warm it up before the client clicks.** Free-tier API functions and databases sleep when idle,
-   so open the site once yourself a minute before sending the link.
-4. **Reset the demo any time** with `npm run prisma:seed:news` against the hosted database — it
-   restores the same 15 articles and their workflow states.
+---
 
 ## Troubleshooting
 
-### "Module '@prisma/client' has no exported member 'ArticleStatus'"
+### `Module '@prisma/client' has no exported member 'ArticleStatus'`
 
-The API was compiled before `prisma generate` ran — a fresh `npm install` leaves `@prisma/client`
-as a stub with no model types until it is generated from `schema.prisma`. `apps/api`'s build script
-is `prisma generate && nest build`, so this is handled; if you still hit it, something is calling
-`nest build` directly instead of `npm run build`.
+The API compiled before `prisma generate` ran — a fresh `npm install` leaves `@prisma/client` as a
+stub with no model types. `apps/api`'s build script is `prisma generate && nest build`, so this is
+handled; if you still hit it, something is invoking `nest build` directly.
 
 ### The build log starts with `npm run build -w apps/web && npm run build -w apps/api`
 
-That is the **root** build script, which means the project's **Root Directory is the repository
-root**. Vercel then has no idea where the Next.js output lives (the root `package.json` has no
-`next` dependency, so it is detected as "Other" and looks for a `public/` folder), and it also
-builds the API needlessly.
+That is the **root** build script, so the project's Root Directory is the repository root. Vercel
+then has no idea where the Next.js output lives and also builds the API needlessly. Fix in
+**Settings → General → Root Directory** (`apps/web` or `apps/api`).
 
-Fix it in **Project → Settings → General → Root Directory**:
+### The site deploys but shows the old placeholder layout
 
-| Project | Root Directory | Framework |
-| --- | --- | --- |
-| the website | `apps/web` | Next.js (auto-detected) |
-| the API | `apps/api` | Other |
+`NEXT_PUBLIC_API_URL` is wrong, missing, or was added after the build. The site is written to fall
+back to a static demo layout when the API is unreachable, so this fails silently by design. Check
+the value has no `/api` suffix and no trailing slash, then **redeploy**.
 
-One Vercel project cannot serve both apps — create two projects from the same repository, each
-with its own Root Directory. Vercel still runs `npm install` at the repository root, so the npm
-workspace resolves normally.
+### API returns 500 on every request
 
-## If the serverless API gives you trouble
+Almost always the database: either `DATABASE_URL` is missing/unpooled, or Step 2 was skipped and the
+schema does not exist. Check the function logs under the API project's **Logs** tab.
 
-The Nest-on-Vercel path is the fiddliest part of this setup. A drop-in alternative that keeps
-everything free:
+### First request after idle is slow
 
-1. Deploy `apps/api` to [Render](https://render.com) as a **Web Service** (free plan):
-   - Root directory `apps/api`, build `npm install && npx prisma generate && npm run build`,
-     start `npm start`.
-   - Same environment variables as above.
-2. Point `NEXT_PUBLIC_API_URL` at the Render URL and redeploy the web project.
+Expected. The function cold-starts and Neon wakes from scale-to-zero. Subsequent requests are fast.
 
-Render's free service spins down after 15 minutes of inactivity (~30s cold start) but runs the
-API exactly as it runs locally, with no serverless caveats.
+---
+
+## Free-tier limits worth knowing
+
+- **Vercel Hobby is for non-commercial use.** If Gāḷi Suddi carries ads or subscriptions, Vercel's
+  terms require a Pro plan.
+- **Neon free** suspends after inactivity and wakes on the next query; 0.5 GB storage.
+- **Scheduled publishing**: SCHEDULED articles are flipped to PUBLISHED by a sweep that runs on
+  public reads. For exact timing, hit `POST <api>/api/admin/articles/publish-due` from a cron
+  (Hobby allows one cron per day; cron-job.org is free and finer-grained).
+
+## Alternative if the serverless API misbehaves
+
+Nest-on-serverless is the fiddliest part of this setup. A drop-in alternative that stays free:
+deploy `apps/api` to [Render](https://render.com) as a **Web Service** (root directory `apps/api`,
+build `npm install && npm run build`, start `npm start`, same env vars), then point
+`NEXT_PUBLIC_API_URL` at the Render URL and redeploy the website. Render's free service spins down
+after 15 minutes idle (~30s cold start) but runs the API exactly as it runs locally.
